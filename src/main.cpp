@@ -78,6 +78,24 @@ void print_location_help()
 	printf(" up, u                         back out of the current hse block\n");
 }
 
+void print_instabilities(const hse::graph &g, boolean::variable_set &v, const vector<hse::instability> &unstable)
+{
+	for (int i = 0; i < (int)unstable.size(); i++)
+		error("", export_instability(g, v, unstable[i]), __FILE__, __LINE__);
+}
+
+void print_interference(const hse::graph &g, boolean::variable_set &v, const vector<hse::interference> &interfering)
+{
+	for (int i = 0; i < (int)interfering.size(); i++)
+		error("", export_interference(g, v, interfering[i]), __FILE__, __LINE__);
+}
+
+void print_deadlock(boolean::variable_set &v, const vector<hse::deadlock> deadlocks)
+{
+	for (int i = 0; i < (int)deadlocks.size(); i++)
+		error("", export_deadlock(v, deadlocks[i]), __FILE__, __LINE__);
+}
+
 vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boolean::variable_set &v)
 {
 	vector<pair<hse::iterator, int> > result;
@@ -294,7 +312,17 @@ void real_time(hse::graph &g, boolean::variable_set &v, string filename)
 		else if ((strncmp(command, "quit", 4) == 0 && length == 4) || (strncmp(command, "q", 1) == 0 && length == 1))
 			done = true;
 		else if ((strncmp(command, "elaborate", 9) == 0 && length == 9) || (strncmp(command, "e", 1) == 0 && length == 1))
-			g.elaborate();
+		{
+			vector<hse::instability> unstable;
+			vector<hse::interference> interfering;
+			vector<hse::deadlock> deadlocks;
+
+			g.elaborate(unstable, interfering, deadlocks);
+
+			print_instabilities(g, v, unstable);
+			print_interference(g, v, interfering);
+			print_deadlock(v, deadlocks);
+		}
 		else if ((strncmp(command, "conflicts", 9) == 0 && length == 9) || (strncmp(command, "c", 1) == 0 && length == 1))
 		{
 			enc.check(true);
@@ -445,7 +473,91 @@ string place_to_string(parse::syntax *syn, vector<hse::iterator> p, vector<hse::
 		return "not found";
 }
 
-void print_conflicts(hse::encoder &enc, hse::graph &g, parse_hse::parallel &p, int sense)
+string node2string(hse::iterator i, hse::graph &g, boolean::variable_set &v)
+{
+	vector<hse::iterator> n = g.next(i);
+	vector<hse::iterator> p = g.prev(i);
+	string result = "";
+
+	if (i.type == hse::transition::type)
+	{
+		vector<hse::iterator> pp;
+		vector<hse::iterator> np;
+
+		bool proper_nest = true;
+		for (int j = 0; j < (int)p.size(); j++)
+		{
+			vector<hse::iterator> tmp = g.prev(p[j]);
+			pp.insert(pp.begin(), tmp.begin(), tmp.end());
+			tmp = g.next(p[j]);
+			np.insert(np.begin(), tmp.begin(), tmp.end());
+			if (p.size() > 1 && tmp.size() > 1)
+				proper_nest = false;
+		}
+
+		sort(pp.begin(), pp.end());
+		pp.resize(unique(pp.begin(), pp.end()) - pp.begin());
+		sort(np.begin(), np.end());
+		np.resize(unique(np.begin(), np.end()) - np.begin());
+
+		n = np;
+		p = pp;
+	}
+
+	if (p.size() > 1)
+	{
+		result = "[...";
+		for (int j = 0; j < (int)p.size(); j++)
+		{
+			if (j != 0)
+				result += "[]...";
+
+			if (g.transitions[p[j].index].behavior == hse::transition::active)
+				result += export_internal_choice(g.transitions[p[j].index].action, v).to_string();
+			else
+				result += "[" + export_disjunction(g.transitions[p[j].index].action, v).to_string() + "]";
+		}
+		result += "] ; ";
+	}
+	else if (p.size() == 1 && g.transitions[p[0].index].behavior == hse::transition::active)
+		result =  export_internal_choice(g.transitions[p[0].index].action, v).to_string() + " ; ";
+	else if (p.size() == 1 && g.next(g.prev(p[0])).size() > 1)
+		result = "[" + export_disjunction(g.transitions[p[0].index].action, v).to_string() + " -> ";
+	else if (p.size() == 1)
+		result = "[" + export_disjunction(g.transitions[p[0].index].action, v).to_string() + "] ; ";
+
+	if (n.size() > 1)
+	{
+		result += "[";
+		for (int j = 0; j < (int)n.size(); j++)
+		{
+			if (j != 0)
+				result += "[]";
+
+			if (n[j] == i)
+				result += " ";
+
+			if (g.transitions[n[j].index].behavior == hse::transition::active)
+				result += "1->" + export_internal_choice(g.transitions[n[j].index].action, v).to_string() + "...";
+			else
+				result += export_disjunction(g.transitions[n[j].index].action, v).to_string() + "->...";
+
+			if (n[j] == i)
+				result += " ";
+		}
+		result += "]";
+	}
+	else if (n.size() == 1 && g.transitions[n[0].index].behavior == hse::transition::active)
+		result += export_internal_choice(g.transitions[n[0].index].action, v).to_string();
+	else if (n.size() == 1 && g.prev(g.next(n[0])).size() > 1)
+		result += export_disjunction(g.transitions[n[0].index].action, v).to_string() + "]";
+	else if (n.size() == 1)
+		result += "[" + export_disjunction(g.transitions[n[0].index].action, v).to_string() + "]";
+
+	return result;
+}
+
+void print_conflicts(hse::encoder &enc, hse::graph &g, boolean::variable_set &v, int sense)
 {
 	for (int i = 0; i < (int)enc.conflicts.size(); i++)
 	{
@@ -454,12 +566,12 @@ void print_conflicts(hse::encoder &enc, hse::graph &g, parse_hse::parallel &p, i
 			vector<hse::iterator> imp;
 			for (int j = 0; j < (int)enc.conflicts[i].implicant.size(); j++)
 				imp.push_back(hse::iterator(hse::place::type, enc.conflicts[i].implicant[j]));
-			printf("T%d.%d\t%s\n{\n", enc.conflicts[i].index.index, enc.conflicts[i].index.term, place_to_string(&p, g.prev(imp), g.next(imp), false).c_str());
+			printf("T%d.%d\t%s\n{\n", enc.conflicts[i].index.index, enc.conflicts[i].index.term, node2string(hse::iterator(hse::transition::type, enc.conflicts[i].index.index), g, v).c_str());
 
 			for (int j = 0; j < (int)enc.conflicts[i].region.size(); j++)
 			{
 				hse::iterator k(hse::place::type, enc.conflicts[i].region[j]);
-				printf("\tP%d\t%s\n", enc.conflicts[i].region[j], place_to_string(&p, g.prev(k), g.next(k), false).c_str());
+				printf("\tP%d\t%s\n", enc.conflicts[i].region[j], node2string(k, g, v).c_str());
 			}
 			printf("}\n");
 		}
@@ -467,7 +579,7 @@ void print_conflicts(hse::encoder &enc, hse::graph &g, parse_hse::parallel &p, i
 	printf("\n");
 }
 
-void print_suspects(hse::encoder &enc, hse::graph &g, parse_hse::parallel &p, int sense)
+void print_suspects(hse::encoder &enc, hse::graph &g, boolean::variable_set &v, int sense)
 {
 	for (int i = 0; i < (int)enc.suspects.size(); i++)
 	{
@@ -477,14 +589,14 @@ void print_suspects(hse::encoder &enc, hse::graph &g, parse_hse::parallel &p, in
 			for (int j = 0; j < (int)enc.suspects[i].first.size(); j++)
 			{
 				hse::iterator k(hse::place::type, enc.suspects[i].first[j]);
-				printf("\tP%d\t%s\n", enc.suspects[i].first[j], place_to_string(&p, g.prev(k), g.next(k), false).c_str());
+				printf("\tP%d\t%s\n", enc.suspects[i].first[j], node2string(k, g, v).c_str());
 			}
 			printf("=============================================\n");
 
 			for (int j = 0; j < (int)enc.suspects[i].second.size(); j++)
 			{
 				hse::iterator k(hse::place::type, enc.suspects[i].second[j]);
-				printf("\tP%d\t%s\n", enc.suspects[i].second[j], place_to_string(&p, g.prev(k), g.next(k), false).c_str());
+				printf("\tP%d\t%s\n", enc.suspects[i].second[j], node2string(k, g, v).c_str());
 			}
 			printf("}\n");
 		}
@@ -577,21 +689,26 @@ int main(int argc, char **argv)
 		g.compact();
 
 		g.reachability();
-		g.elaborate();
+
+		vector<hse::instability> unstable;
+		vector<hse::interference> interfering;
+		vector<hse::deadlock> deadlocks;
+		g.elaborate(unstable, interfering, deadlocks);
+		print_instabilities(g, v, unstable);
+		print_interference(g, v, interfering);
+		print_deadlock(v, deadlocks);
 
 		hse::encoder enc;
 		enc.base = &g;
-
-		parse_hse::parallel p = export_parallel(g, v);
 
 		if (c || s)
 		{
 			enc.check(true);
 			if (c)
-				print_conflicts(enc, g, p, -1);
+				print_conflicts(enc, g, v, -1);
 
 			if (s)
-				print_suspects(enc, g, p, -1);
+				print_suspects(enc, g, v, -1);
 		}
 
 		if (cu || cd || su || sd)
@@ -599,16 +716,16 @@ int main(int argc, char **argv)
 			enc.check(false);
 
 			if (cu)
-				print_conflicts(enc, g, p, 0);
+				print_conflicts(enc, g, v, 0);
 
 			if (cd)
-				print_conflicts(enc, g, p, 1);
+				print_conflicts(enc, g, v, 1);
 
 			if (su)
-				print_suspects(enc, g, p, 0);
+				print_suspects(enc, g, v, 0);
 
 			if (sd)
-				print_suspects(enc, g, p, 1);
+				print_suspects(enc, g, v, 1);
 		}
 
 		if (!c && !cu && !cd && !s && !su && !sd)
