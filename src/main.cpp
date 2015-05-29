@@ -275,6 +275,8 @@ void print_conflicts(hse::encoder &enc, hse::graph &g, boolean::variable_set &v,
 			}
 			printf("T%d.%d\t%s\n{\n", enc.conflicts[i].index.index, enc.conflicts[i].index.term, node2string(hse::iterator(hse::transition::type, enc.conflicts[i].index.index), g, v).c_str());
 
+			implicant = implicant.mask(g.transitions[enc.conflicts[i].index.index].action[enc.conflicts[i].index.term].mask()).mask(sense);
+
 			for (int j = 0; j < (int)enc.conflicts[i].region.size(); j++)
 			{
 				hse::iterator k(hse::place::type, enc.conflicts[i].region[j]);
