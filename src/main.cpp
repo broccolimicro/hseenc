@@ -78,25 +78,6 @@ void print_location_help()
 	printf(" up, u                         back out of the current hse block\n");
 }
 
-void print_instabilities(const hse::graph &g, boolean::variable_set &v, const vector<hse::instability> &unstable)
-{
-	for (int i = 0; i < (int)unstable.size(); i++)
-		error("", export_instability(g, v, unstable[i]), __FILE__, __LINE__);
-}
-
-void print_interference(const hse::graph &g, boolean::variable_set &v, const vector<hse::interference> &interfering)
-{
-	for (int i = 0; i < (int)interfering.size(); i++)
-		error("", export_interference(g, v, interfering[i]), __FILE__, __LINE__);
-}
-
-void print_deadlock(boolean::variable_set &v, const vector<hse::deadlock> deadlocks)
-{
-	for (int i = 0; i < (int)deadlocks.size(); i++)
-		error("", export_deadlock(v, deadlocks[i]), __FILE__, __LINE__);
-}
-
-
 bool find(vector<hse::iterator> n, parse::syntax *syn)
 {
 	if (syn->is_a<parse_boolean::disjunction>())
@@ -286,14 +267,18 @@ void print_conflicts(hse::encoder &enc, hse::graph &g, boolean::variable_set &v,
 		if (enc.conflicts[i].sense == sense)
 		{
 			vector<hse::iterator> imp;
+			boolean::cover implicant = 1;
 			for (int j = 0; j < (int)enc.conflicts[i].implicant.size(); j++)
+			{
 				imp.push_back(hse::iterator(hse::place::type, enc.conflicts[i].implicant[j]));
+				implicant &= g.places[enc.conflicts[i].implicant[j]].effective;
+			}
 			printf("T%d.%d\t%s\n{\n", enc.conflicts[i].index.index, enc.conflicts[i].index.term, node2string(hse::iterator(hse::transition::type, enc.conflicts[i].index.index), g, v).c_str());
 
 			for (int j = 0; j < (int)enc.conflicts[i].region.size(); j++)
 			{
 				hse::iterator k(hse::place::type, enc.conflicts[i].region[j]);
-				printf("\tP%d\t%s\n", enc.conflicts[i].region[j], node2string(k, g, v).c_str());
+				printf("\tP%d\t%s\t%s\n", enc.conflicts[i].region[j], node2string(k, g, v).c_str(), export_disjunction(implicant & g.places[enc.conflicts[i].region[j]].effective, v).to_string().c_str());
 			}
 			printf("}\n");
 		}
@@ -542,17 +527,7 @@ void real_time(hse::graph &g, boolean::variable_set &v, string filename)
 		else if ((strncmp(command, "quit", 4) == 0 && length == 4) || (strncmp(command, "q", 1) == 0 && length == 1))
 			done = true;
 		else if ((strncmp(command, "elaborate", 9) == 0 && length == 9) || (strncmp(command, "e", 1) == 0 && length == 1))
-		{
-			vector<hse::instability> unstable;
-			vector<hse::interference> interfering;
-			vector<hse::deadlock> deadlocks;
-
-			g.elaborate(unstable, interfering, deadlocks, true);
-
-			print_instabilities(g, v, unstable);
-			print_interference(g, v, interfering);
-			print_deadlock(v, deadlocks);
-		}
+			g.elaborate(v, true);
 		else if ((strncmp(command, "conflicts", 9) == 0 && length == 9) || (strncmp(command, "c", 1) == 0 && length == 1))
 		{
 			enc.check(true);
@@ -690,17 +665,11 @@ int main(int argc, char **argv)
 			dot_tokens.expect<parse_dot::graph>();
 			first = false;
 		}
-		g.compact(true);
+		g.compact(v, true);
 
 		g.reachability();
 
-		vector<hse::instability> unstable;
-		vector<hse::interference> interfering;
-		vector<hse::deadlock> deadlocks;
-		g.elaborate(unstable, interfering, deadlocks, false);
-		print_instabilities(g, v, unstable);
-		print_interference(g, v, interfering);
-		print_deadlock(v, deadlocks);
+		g.elaborate(v, false);
 
 		hse::encoder enc;
 		enc.base = &g;
