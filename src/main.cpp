@@ -18,6 +18,7 @@
 #include <interpret_boolean/export.h>
 #include <interpret_boolean/import.h>
 #include <boolean/variable.h>
+#include <boolean/factor.h>
 
 void print_help()
 {
@@ -280,7 +281,7 @@ void print_conflicts(hse::encoder &enc, hse::graph &g, boolean::variable_set &v,
 			for (int j = 0; j < (int)enc.conflicts[i].region.size(); j++)
 			{
 				hse::iterator k(hse::place::type, enc.conflicts[i].region[j]);
-				printf("\tP%d\t%s\t%s\n", enc.conflicts[i].region[j], node2string(k, g, v).c_str(), export_disjunction(implicant & g.places[enc.conflicts[i].region[j]].effective, v).to_string().c_str());
+				printf("\tP%d\t%s\t%s\n", enc.conflicts[i].region[j], node2string(k, g, v).c_str(), export_disjunction(boolean::factor().hfactor(implicant & g.places[enc.conflicts[i].region[j]].effective), v).to_string().c_str());
 			}
 			printf("}\n");
 		}
