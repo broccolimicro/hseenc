@@ -7,6 +7,8 @@
 
 #include <common/standard.h>
 #include <parse/parse.h>
+#include <parse/default/block_comment.h>
+#include <parse/default/line_comment.h>
 #include <parse_hse/parallel.h>
 #include <hse/graph.h>
 #include <hse/simulator.h>
@@ -502,6 +504,8 @@ int main(int argc, char **argv)
 	tokenizer dot_tokens;
 	parse_hse::parallel::register_syntax(hse_tokens);
 	parse_dot::graph::register_syntax(dot_tokens);
+	hse_tokens.register_comment<parse::block_comment>();
+	hse_tokens.register_comment<parse::line_comment>();
 
 	bool c = false, cu = false, cd = false, s = false, su = false, sd = false;
 
