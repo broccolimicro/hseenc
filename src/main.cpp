@@ -176,90 +176,6 @@ string place_to_string(parse::syntax *syn, vector<hse::iterator> p, vector<hse::
 		return "not found";
 }
 
-string node2string(hse::iterator i, hse::graph &g, boolean::variable_set &v)
-{
-	vector<hse::iterator> n = g.next(i);
-	vector<hse::iterator> p = g.prev(i);
-	string result = "";
-
-	if (i.type == hse::transition::type)
-	{
-		vector<hse::iterator> pp;
-		vector<hse::iterator> np;
-
-		bool proper_nest = true;
-		for (int j = 0; j < (int)p.size(); j++)
-		{
-			vector<hse::iterator> tmp = g.prev(p[j]);
-			pp.insert(pp.begin(), tmp.begin(), tmp.end());
-			tmp = g.next(p[j]);
-			np.insert(np.begin(), tmp.begin(), tmp.end());
-			if (p.size() > 1 && tmp.size() > 1)
-				proper_nest = false;
-		}
-
-		sort(pp.begin(), pp.end());
-		pp.resize(unique(pp.begin(), pp.end()) - pp.begin());
-		sort(np.begin(), np.end());
-		np.resize(unique(np.begin(), np.end()) - np.begin());
-
-		n = np;
-		p = pp;
-	}
-
-	if (p.size() > 1)
-	{
-		result = "[...";
-		for (int j = 0; j < (int)p.size(); j++)
-		{
-			if (j != 0)
-				result += "[]...";
-
-			if (g.transitions[p[j].index].behavior == hse::transition::active)
-				result += export_assignment(g.transitions[p[j].index].action, v).to_string();
-			else
-				result += "[" + export_guard(g.transitions[p[j].index].action, v).to_string() + "]";
-		}
-		result += "] ; ";
-	}
-	else if (p.size() == 1 && g.transitions[p[0].index].behavior == hse::transition::active)
-		result =  export_assignment(g.transitions[p[0].index].action, v).to_string() + " ; ";
-	else if (p.size() == 1 && g.next(g.prev(p[0])).size() > 1)
-		result = "[" + export_guard(g.transitions[p[0].index].action, v).to_string() + " -> ";
-	else if (p.size() == 1)
-		result = "[" + export_guard(g.transitions[p[0].index].action, v).to_string() + "] ; ";
-
-	if (n.size() > 1)
-	{
-		result += "[";
-		for (int j = 0; j < (int)n.size(); j++)
-		{
-			if (j != 0)
-				result += "[]";
-
-			if (n[j] == i)
-				result += " ";
-
-			if (g.transitions[n[j].index].behavior == hse::transition::active)
-				result += "1->" + export_assignment(g.transitions[n[j].index].action, v).to_string() + "...";
-			else
-				result += export_guard(g.transitions[n[j].index].action, v).to_string() + "->...";
-
-			if (n[j] == i)
-				result += " ";
-		}
-		result += "]";
-	}
-	else if (n.size() == 1 && g.transitions[n[0].index].behavior == hse::transition::active)
-		result += export_assignment(g.transitions[n[0].index].action, v).to_string();
-	else if (n.size() == 1 && g.prev(g.next(n[0])).size() > 1)
-		result += export_guard(g.transitions[n[0].index].action, v).to_string() + "]";
-	else if (n.size() == 1)
-		result += "[" + export_guard(g.transitions[n[0].index].action, v).to_string() + "]";
-
-	return result;
-}
-
 void print_conflicts(hse::encoder &enc, hse::graph &g, boolean::variable_set &v, int sense)
 {
 	for (int i = 0; i < (int)enc.conflicts.size(); i++)
@@ -269,12 +185,12 @@ void print_conflicts(hse::encoder &enc, hse::graph &g, boolean::variable_set &v,
 			vector<hse::iterator> imp;
 			for (int j = 0; j < (int)enc.conflicts[i].implicant.size(); j++)
 				imp.push_back(hse::iterator(hse::place::type, enc.conflicts[i].implicant[j]));
-			printf("T%d.%d\t%s\n{\n", enc.conflicts[i].index.index, enc.conflicts[i].index.term, node2string(hse::iterator(hse::transition::type, enc.conflicts[i].index.index), g, v).c_str());
+			printf("T%d.%d\t%s\n{\n", enc.conflicts[i].index.index, enc.conflicts[i].index.term, export_node(hse::iterator(hse::transition::type, enc.conflicts[i].index.index), g, v).c_str());
 
 			for (int j = 0; j < (int)enc.conflicts[i].region.size(); j++)
 			{
 				hse::iterator k(hse::place::type, enc.conflicts[i].region[j]);
-				printf("\tP%d\t%s\n", enc.conflicts[i].region[j], node2string(k, g, v).c_str());
+				printf("\tP%d\t%s\n", enc.conflicts[i].region[j], export_node(k, g, v).c_str());
 			}
 			printf("}\n");
 		}
@@ -292,14 +208,14 @@ void print_suspects(hse::encoder &enc, hse::graph &g, boolean::variable_set &v, 
 			for (int j = 0; j < (int)enc.suspects[i].first.size(); j++)
 			{
 				hse::iterator k(hse::place::type, enc.suspects[i].first[j]);
-				printf("\tP%d\t%s\n", enc.suspects[i].first[j], node2string(k, g, v).c_str());
+				printf("\tP%d\t%s\n", enc.suspects[i].first[j], export_node(k, g, v).c_str());
 			}
 			printf("=============================================\n");
 
 			for (int j = 0; j < (int)enc.suspects[i].second.size(); j++)
 			{
 				hse::iterator k(hse::place::type, enc.suspects[i].second[j]);
-				printf("\tP%d\t%s\n", enc.suspects[i].second[j], node2string(k, g, v).c_str());
+				printf("\tP%d\t%s\n", enc.suspects[i].second[j], export_node(k, g, v).c_str());
 			}
 			printf("}\n");
 		}
@@ -389,7 +305,8 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boo
 		{
 			fclose(script);
 			script = stdin;
-			fgets(command, 255, script);
+			if (fgets(command, 255, script) == NULL)
+				exit(0);
 		}
 		int length = strlen(command);
 		command[length-1] = '\0';
@@ -512,7 +429,8 @@ void real_time(hse::graph &g, boolean::variable_set &v, string filename)
 		{
 			fclose(script);
 			script = stdin;
-			fgets(command, 255, script);
+			if (fgets(command, 255, script) == NULL)
+				exit(0);
 		}
 		int length = strlen(command);
 		command[length-1] = '\0';
