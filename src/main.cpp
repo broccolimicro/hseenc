@@ -18,7 +18,6 @@
 #include <interpret_boolean/export.h>
 #include <interpret_boolean/import.h>
 #include <boolean/variable.h>
-#include <boolean/factor.h>
 
 void print_help()
 {
@@ -81,9 +80,9 @@ void print_location_help()
 
 bool find(vector<hse::iterator> n, parse::syntax *syn)
 {
-	if (syn->is_a<parse_boolean::disjunction>())
+	if (syn->is_a<parse_boolean::guard>())
 		return find(n.begin(), n.end(), hse::iterator(hse::transition::type, syn->start)) != n.end();
-	else if (syn->is_a<parse_boolean::internal_choice>())
+	else if (syn->is_a<parse_boolean::assignment>())
 		return find(n.begin(), n.end(), hse::iterator(hse::transition::type, syn->start)) != n.end();
 	else if (syn->is_a<parse_hse::sequence>())
 	{
@@ -217,18 +216,18 @@ string node2string(hse::iterator i, hse::graph &g, boolean::variable_set &v)
 				result += "[]...";
 
 			if (g.transitions[p[j].index].behavior == hse::transition::active)
-				result += export_internal_choice(g.transitions[p[j].index].action, v).to_string();
+				result += export_assignment(g.transitions[p[j].index].action, v).to_string();
 			else
-				result += "[" + export_disjunction(g.transitions[p[j].index].action, v).to_string() + "]";
+				result += "[" + export_guard(g.transitions[p[j].index].action, v).to_string() + "]";
 		}
 		result += "] ; ";
 	}
 	else if (p.size() == 1 && g.transitions[p[0].index].behavior == hse::transition::active)
-		result =  export_internal_choice(g.transitions[p[0].index].action, v).to_string() + " ; ";
+		result =  export_assignment(g.transitions[p[0].index].action, v).to_string() + " ; ";
 	else if (p.size() == 1 && g.next(g.prev(p[0])).size() > 1)
-		result = "[" + export_disjunction(g.transitions[p[0].index].action, v).to_string() + " -> ";
+		result = "[" + export_guard(g.transitions[p[0].index].action, v).to_string() + " -> ";
 	else if (p.size() == 1)
-		result = "[" + export_disjunction(g.transitions[p[0].index].action, v).to_string() + "] ; ";
+		result = "[" + export_guard(g.transitions[p[0].index].action, v).to_string() + "] ; ";
 
 	if (n.size() > 1)
 	{
@@ -242,9 +241,9 @@ string node2string(hse::iterator i, hse::graph &g, boolean::variable_set &v)
 				result += " ";
 
 			if (g.transitions[n[j].index].behavior == hse::transition::active)
-				result += "1->" + export_internal_choice(g.transitions[n[j].index].action, v).to_string() + "...";
+				result += "1->" + export_assignment(g.transitions[n[j].index].action, v).to_string() + "...";
 			else
-				result += export_disjunction(g.transitions[n[j].index].action, v).to_string() + "->...";
+				result += export_guard(g.transitions[n[j].index].action, v).to_string() + "->...";
 
 			if (n[j] == i)
 				result += " ";
@@ -252,11 +251,11 @@ string node2string(hse::iterator i, hse::graph &g, boolean::variable_set &v)
 		result += "]";
 	}
 	else if (n.size() == 1 && g.transitions[n[0].index].behavior == hse::transition::active)
-		result += export_internal_choice(g.transitions[n[0].index].action, v).to_string();
+		result += export_assignment(g.transitions[n[0].index].action, v).to_string();
 	else if (n.size() == 1 && g.prev(g.next(n[0])).size() > 1)
-		result += export_disjunction(g.transitions[n[0].index].action, v).to_string() + "]";
+		result += export_guard(g.transitions[n[0].index].action, v).to_string() + "]";
 	else if (n.size() == 1)
-		result += "[" + export_disjunction(g.transitions[n[0].index].action, v).to_string() + "]";
+		result += "[" + export_guard(g.transitions[n[0].index].action, v).to_string() + "]";
 
 	return result;
 }
@@ -268,20 +267,14 @@ void print_conflicts(hse::encoder &enc, hse::graph &g, boolean::variable_set &v,
 		if (enc.conflicts[i].sense == sense)
 		{
 			vector<hse::iterator> imp;
-			boolean::cover implicant = 1;
 			for (int j = 0; j < (int)enc.conflicts[i].implicant.size(); j++)
-			{
 				imp.push_back(hse::iterator(hse::place::type, enc.conflicts[i].implicant[j]));
-				implicant &= g.places[enc.conflicts[i].implicant[j]].effective;
-			}
 			printf("T%d.%d\t%s\n{\n", enc.conflicts[i].index.index, enc.conflicts[i].index.term, node2string(hse::iterator(hse::transition::type, enc.conflicts[i].index.index), g, v).c_str());
-
-			implicant = implicant.mask(g.transitions[enc.conflicts[i].index.index].action[enc.conflicts[i].index.term].mask()).mask(sense);
 
 			for (int j = 0; j < (int)enc.conflicts[i].region.size(); j++)
 			{
 				hse::iterator k(hse::place::type, enc.conflicts[i].region[j]);
-				printf("\tP%d\t%s\t%s\n", enc.conflicts[i].region[j], node2string(k, g, v).c_str(), export_disjunction(boolean::factor().hfactor(implicant & g.places[enc.conflicts[i].region[j]].effective), v).to_string().c_str());
+				printf("\tP%d\t%s\n", enc.conflicts[i].region[j], node2string(k, g, v).c_str());
 			}
 			printf("}\n");
 		}
@@ -386,7 +379,7 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boo
 
 		printf("%d %d\n", stack.back()->start, stack.back()->end);
 
-		if (stack.back()->is_a<parse_boolean::disjunction>() || stack.back()->is_a<parse_boolean::internal_choice>())
+		if (stack.back()->is_a<parse_boolean::guard>() || stack.back()->is_a<parse_boolean::assignment>())
 			printf("before(b) or after(a)?");
 		else
 			printf("(location)");
@@ -415,7 +408,7 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boo
 			print_location_help();
 		if (strncmp(command, "before", 6) == 0 || strncmp(command, "b", 1) == 0)
 		{
-			if (stack.back()->is_a<parse_boolean::disjunction>() || stack.back()->is_a<parse_boolean::internal_choice>())
+			if (stack.back()->is_a<parse_boolean::guard>() || stack.back()->is_a<parse_boolean::assignment>())
 			{
 
 			}
@@ -427,7 +420,7 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boo
 		}
 		else if (strncmp(command, "after", 5) == 0 || strncmp(command, "a", 1) == 0)
 		{
-			if (stack.back()->is_a<parse_boolean::disjunction>() || stack.back()->is_a<parse_boolean::internal_choice>())
+			if (stack.back()->is_a<parse_boolean::guard>() || stack.back()->is_a<parse_boolean::assignment>())
 			{
 
 			}
@@ -439,7 +432,7 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boo
 		}
 		else if (sscanf(command, "%d", &n) == 1)
 		{
-			if (stack.back()->is_a<parse_boolean::disjunction>() || stack.back()->is_a<parse_boolean::internal_choice>())
+			if (stack.back()->is_a<parse_boolean::guard>() || stack.back()->is_a<parse_boolean::assignment>())
 			{
 
 			}
@@ -503,8 +496,8 @@ void real_time(hse::graph &g, boolean::variable_set &v, string filename)
 	hse::encoder enc;
 	enc.base = &g;
 
-	tokenizer internal_choice_parser(false);
-	parse_boolean::internal_choice::register_syntax(internal_choice_parser);
+	tokenizer assignment_parser(false);
+	parse_boolean::assignment::register_syntax(assignment_parser);
 
 	g.reachability();
 
@@ -567,10 +560,10 @@ void real_time(hse::graph &g, boolean::variable_set &v, string filename)
 				printf("error: expected expression\n");
 			else
 			{
-				internal_choice_parser.insert("", string(command).substr(6));
-				parse_boolean::internal_choice expr(internal_choice_parser);
-				boolean::cover action = import_cover(internal_choice_parser, expr, v, true);
-				if (internal_choice_parser.is_clean())
+				assignment_parser.insert("", string(command).substr(6));
+				parse_boolean::assignment expr(assignment_parser);
+				boolean::cover action = import_cover(expr, v, &assignment_parser, true);
+				if (assignment_parser.is_clean())
 				{
 					vector<pair<hse::iterator, int> > locations = get_locations(script, g, v);
 					for (int i = 0; i < (int)locations.size(); i++)
@@ -650,7 +643,7 @@ int main(int argc, char **argv)
 		while (hse_tokens.decrement(__FILE__, __LINE__))
 		{
 			parse_hse::parallel syntax(hse_tokens);
-			g.merge(hse::parallel, import_graph(hse_tokens, syntax, v, true), !first);
+			g.merge(hse::parallel, import_graph(syntax, v, &hse_tokens, true), !first);
 
 			hse_tokens.increment(false);
 			hse_tokens.expect<parse_hse::parallel>();
@@ -662,7 +655,7 @@ int main(int argc, char **argv)
 		while (dot_tokens.decrement(__FILE__, __LINE__))
 		{
 			parse_dot::graph syntax(dot_tokens);
-			g.merge(hse::parallel, import_graph(dot_tokens, syntax, v, true), !first);
+			g.merge(hse::parallel, import_graph(syntax, v, &dot_tokens, true), !first);
 
 			dot_tokens.increment(false);
 			dot_tokens.expect<parse_dot::graph>();
