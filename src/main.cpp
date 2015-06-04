@@ -583,7 +583,7 @@ int main(int argc, char **argv)
 			dot_tokens.expect<parse_dot::graph>();
 			first = false;
 		}
-		g.compact(v, true);
+		g.post_process(v, true);
 
 		g.reachability();
 
