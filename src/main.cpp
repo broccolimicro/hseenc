@@ -482,7 +482,7 @@ void real_time(hse::graph &g, boolean::variable_set &v, string filename)
 			{
 				assignment_parser.insert("", string(command).substr(6));
 				parse_boolean::assignment expr(assignment_parser);
-				boolean::cover action = import_cover(expr, v, &assignment_parser, true);
+				boolean::cover action = import_cover(expr, v, 0, &assignment_parser, true);
 				if (assignment_parser.is_clean())
 				{
 					vector<pair<hse::iterator, int> > locations = get_locations(script, g, v);
@@ -565,7 +565,7 @@ int main(int argc, char **argv)
 		while (hse_tokens.decrement(__FILE__, __LINE__))
 		{
 			parse_hse::parallel syntax(hse_tokens);
-			g.merge(hse::parallel, import_graph(syntax, v, &hse_tokens, true), !first);
+			g.merge(hse::parallel, import_graph(syntax, v, 0, &hse_tokens, true), !first);
 
 			hse_tokens.increment(false);
 			hse_tokens.expect<parse_hse::parallel>();
