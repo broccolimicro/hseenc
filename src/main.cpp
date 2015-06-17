@@ -584,8 +584,7 @@ int main(int argc, char **argv)
 			first = false;
 		}
 		g.post_process(v, true);
-
-		g.reachability();
+		g.check_variables(v);
 
 		g.elaborate(v, false);
 
