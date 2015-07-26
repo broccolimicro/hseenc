@@ -9,17 +9,15 @@
 #include <parse/parse.h>
 #include <parse/default/block_comment.h>
 #include <parse/default/line_comment.h>
-#include <parse_hse/parallel.h>
+#include <parse_chp/composition.h>
 #include <hse/graph.h>
 #include <hse/simulator.h>
 #include <hse/encoder.h>
 #include <interpret_hse/import.h>
 #include <interpret_hse/export.h>
-#include <interpret_dot/export.h>
-#include <interpret_dot/import.h>
 #include <interpret_boolean/export.h>
 #include <interpret_boolean/import.h>
-#include <boolean/variable.h>
+#include <ucs/variable.h>
 
 void print_help()
 {
@@ -80,105 +78,7 @@ void print_location_help()
 	printf(" up, u                         back out of the current hse block\n");
 }
 
-bool find(vector<hse::iterator> n, parse::syntax *syn)
-{
-	if (syn->is_a<parse_boolean::guard>())
-		return find(n.begin(), n.end(), hse::iterator(hse::transition::type, syn->start)) != n.end();
-	else if (syn->is_a<parse_boolean::assignment>())
-		return find(n.begin(), n.end(), hse::iterator(hse::transition::type, syn->start)) != n.end();
-	else if (syn->is_a<parse_hse::sequence>())
-	{
-		parse_hse::sequence *s = (parse_hse::sequence*)syn;
-		bool found = false;
-		for (int i = 0; i < s->actions.size(); i++)
-			found = found || find(n, s->actions[i]);
-		return found;
-	}
-	else if (syn->is_a<parse_hse::parallel>())
-	{
-		parse_hse::parallel *s = (parse_hse::parallel*)syn;
-		bool found = false;
-		for (int i = 0; i < s->branches.size(); i++)
-			found = found || find(n, &s->branches[i]);
-		return found;
-	}
-	else if (syn->is_a<parse_hse::condition>())
-	{
-		parse_hse::condition *s = (parse_hse::condition*)syn;
-		bool found = false;
-		for (int i = 0; i < s->branches.size(); i++)
-			found = found || find(n, &s->branches[i].first) || find(n, &s->branches[i].second);
-		return found;
-	}
-	else if (syn->is_a<parse_hse::loop>())
-	{
-		parse_hse::loop *s = (parse_hse::loop*)syn;
-		bool found = false;
-		for (int i = 0; i < s->branches.size(); i++)
-			found = found || find(n, &s->branches[i].first) || find(n, &s->branches[i].second);
-		return found;
-	}
-	else
-		return false;
-}
-
-string place_to_string(parse::syntax *syn, vector<hse::iterator> p, vector<hse::iterator> n, bool loop)
-{
-	if (syn->is_a<parse_hse::sequence>())
-	{
-		parse_hse::sequence *s = (parse_hse::sequence*)syn;
-		for (int i = 0; i < s->actions.size(); i++)
-		{
-			if (i != 0 && find(p, s->actions[i-1]) && find(n, s->actions[i]))
-				return s->actions[i-1]->to_string() + " ; " + s->actions[i]->to_string();
-			else if (find(p, s->actions[i]) && find(n, s->actions[i]))
-				return place_to_string(s->actions[i], p, n, false);
-		}
-
-		if (loop && s->actions.size() > 0 && find(p, s->actions.back()) && find(n, s->actions[0]))
-			return s->actions.back()->to_string() + " ; " + s->actions[0]->to_string();
-
-		return "not found";
-	}
-	else if (syn->is_a<parse_hse::parallel>())
-	{
-		parse_hse::parallel *s = (parse_hse::parallel*)syn;
-		for (int i = 0; i < s->branches.size(); i++)
-			if (find(p, &s->branches[i]) && find(n, &s->branches[i]))
-				return place_to_string(&s->branches[i], p, n, loop);
-		return "not found";
-	}
-	else if (syn->is_a<parse_hse::condition>())
-	{
-		parse_hse::condition *s = (parse_hse::condition*)syn;
-		for (int i = 0; i < s->branches.size(); i++)
-		{
-			if (find(p, &s->branches[i].first) && find(n, &s->branches[i].second))
-				return s->branches[i].first.to_string() + " -> " + s->branches[i].second.to_string();
-			else if (find(p, &s->branches[i].second) && find(n, &s->branches[i].second))
-				return place_to_string(&s->branches[i].second, p, n, loop);
-		}
-		return "not found";
-	}
-	else if (syn->is_a<parse_hse::loop>() && find(p, syn) && find(n, syn))
-	{
-		parse_hse::loop *s = (parse_hse::loop*)syn;
-		for (int i = 0; i < s->branches.size(); i++)
-		{
-			if (find(p, &s->branches[i].first) && find(n, &s->branches[i].second))
-				return s->branches[i].first.to_string() + " -> " + s->branches[i].second.to_string();
-			else if (find(n, &s->branches[i].first) && find(p, &s->branches[i].second))
-				return s->branches[i].second.to_string() + " ; " + s->branches[i].first.to_string();
-			else if (find(p, &s->branches[i].second) && find(n, &s->branches[i].second))
-				return place_to_string(&s->branches[i].second, p, n, true);
-		}
-		return "not found";
-	}
-	else
-		return "not found";
-}
-
-void print_conflicts(hse::encoder &enc, hse::graph &g, boolean::variable_set &v, int sense)
+void print_conflicts(hse::encoder &enc, hse::graph &g, ucs::variable_set &v, int sense)
 {
 	for (int i = 0; i < (int)enc.conflicts.size(); i++)
 	{
@@ -200,7 +100,7 @@ void print_conflicts(hse::encoder &enc, hse::graph &g, boolean::variable_set &v,
 	printf("\n");
 }
 
-void print_suspects(hse::encoder &enc, hse::graph &g, boolean::variable_set &v, int sense)
+void print_suspects(hse::encoder &enc, hse::graph &g, ucs::variable_set &v, int sense)
 {
 	for (int i = 0; i < (int)enc.suspects.size(); i++)
 	{
@@ -225,11 +125,15 @@ void print_suspects(hse::encoder &enc, hse::graph &g, boolean::variable_set &v, 
 	printf("\n");
 }
 
-vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boolean::variable_set &v)
+vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, ucs::variable_set &v)
 {
 	vector<pair<hse::iterator, int> > result;
 
-	parse_hse::parallel p = export_parallel(g, v);
+	vector<hse::iterator> source;
+	if (g.source.size() > 0)
+		for (int i = 0; i < g.source[0].tokens.size(); i++)
+			source.push_back(hse::iterator(hse::place::type, g.source[0].tokens[i].index));
+	parse_chp::composition p = export_sequence(source, g, v);
 
 	vector<parse::syntax*> stack(1, &p);
 
@@ -242,22 +146,26 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boo
 	{
 		while (update)
 		{
-			if (stack.back()->is_a<parse_hse::parallel>())
+			if (stack.back()->is_a<parse_chp::composition>())
 			{
-				parse_hse::parallel *par = (parse_hse::parallel*)stack.back();
+				parse_chp::composition *par = (parse_chp::composition*)stack.back();
 
-				if (par->branches.size() == 1)
-					stack.back() = &par->branches[0];
+				if (par->branches.size() == 1 && par->branches[0].sub.valid)
+					stack.back() = &par->branches[0].sub;
+				else if (par->branches.size() == 1 && par->branches[0].ctrl.valid)
+					stack.back() = &par->branches[0].ctrl;
+				else if (par->branches.size() == 1 && par->branches[0].assign.valid)
+					stack.back() = &par->branches[0].assign;
 				else
 				{
 					for (int i = 0; i < par->branches.size(); i++)
-						printf("(%d) %s\n", i, par->branches[i].to_string().c_str());
+						printf("(%d) %s\n", i, par->branches[i].to_string(-1, "").c_str());
 					update = false;
 				}
 			}
-			else if (stack.back()->is_a<parse_hse::condition>())
+			else if (stack.back()->is_a<parse_chp::control>())
 			{
-				parse_hse::condition *par = (parse_hse::condition*)stack.back();
+				parse_chp::control *par = (parse_chp::control*)stack.back();
 				if (par->branches.size() == 1 && par->branches[0].second.branches.size() == 0)
 					stack.back() = &par->branches[0].first;
 				else
@@ -267,37 +175,13 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boo
 					update = false;
 				}
 			}
-			else if (stack.back()->is_a<parse_hse::loop>())
-			{
-				parse_hse::loop *par = (parse_hse::loop*)stack.back();
-				if (par->branches.size() == 1 && !par->branches[0].first.valid)
-					stack.back() = &par->branches[0].second;
-				else
-				{
-					for (int i = 0; i < par->branches.size(); i++)
-						printf("(%d) %s -> (%d) %s\n", i*2, par->branches[i].first.to_string().c_str(), i*2+1, par->branches[i].second.to_string().c_str());
-					update = false;
-				}
-			}
-			else if (stack.back()->is_a<parse_hse::sequence>())
-			{
-				parse_hse::sequence *par = (parse_hse::sequence*)stack.back();
-				if (par->actions.size() == 1)
-					stack.back() = par->actions[0];
-				else
-				{
-					for (int i = 0; i < par->actions.size(); i++)
-						printf("(%d) %s\n", i, par->actions[i]->to_string().c_str());
-					update = false;
-				}
-			}
 			else
 				update = false;
 		}
 
 		printf("%d %d\n", stack.back()->start, stack.back()->end);
 
-		if (stack.back()->is_a<parse_boolean::guard>() || stack.back()->is_a<parse_boolean::assignment>())
+		if (stack.back()->is_a<parse_expression::expression>() || stack.back()->is_a<parse_expression::assignment>())
 			printf("before(b) or after(a)?");
 		else
 			printf("(location)");
@@ -327,7 +211,7 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boo
 			print_location_help();
 		if (strncmp(command, "before", 6) == 0 || strncmp(command, "b", 1) == 0)
 		{
-			if (stack.back()->is_a<parse_boolean::guard>() || stack.back()->is_a<parse_boolean::assignment>())
+			if (stack.back()->is_a<parse_expression::expression>() || stack.back()->is_a<parse_expression::assignment>())
 			{
 
 			}
@@ -339,7 +223,7 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boo
 		}
 		else if (strncmp(command, "after", 5) == 0 || strncmp(command, "a", 1) == 0)
 		{
-			if (stack.back()->is_a<parse_boolean::guard>() || stack.back()->is_a<parse_boolean::assignment>())
+			if (stack.back()->is_a<parse_expression::expression>() || stack.back()->is_a<parse_expression::assignment>())
 			{
 
 			}
@@ -351,52 +235,35 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boo
 		}
 		else if (sscanf(command, "%d", &n) == 1)
 		{
-			if (stack.back()->is_a<parse_boolean::guard>() || stack.back()->is_a<parse_boolean::assignment>())
+			if (stack.back()->is_a<parse_expression::expression>() || stack.back()->is_a<parse_expression::assignment>())
 			{
 
 			}
 			else
 			{
 				cout << n << endl;
-				if (stack.back()->is_a<parse_hse::parallel>())
+				if (stack.back()->is_a<parse_chp::composition>())
 				{
-					parse_hse::parallel *par = (parse_hse::parallel*)stack.back();
+					parse_chp::composition *par = (parse_chp::composition*)stack.back();
 					if (n < par->branches.size())
 					{
-						stack.push_back(&par->branches[n]);
+						if (par->branches[n].sub.valid)
+							stack.push_back(&par->branches[n].sub);
+						else if (par->branches[n].ctrl.valid)
+							stack.push_back(&par->branches[n].ctrl);
+						else if (par->branches[n].assign.valid)
+							stack.push_back(&par->branches[n].assign);
 						update = true;
 					}
 					else
 						error("", "invalid option", __FILE__, __LINE__);
 				}
-				else if (stack.back()->is_a<parse_hse::condition>())
+				else if (stack.back()->is_a<parse_chp::control>())
 				{
-					parse_hse::condition *par = (parse_hse::condition*)stack.back();
+					parse_chp::control *par = (parse_chp::control*)stack.back();
 					if (n < par->branches.size()/2)
 					{
 						stack.push_back(n%2 == 0 ? (parse::syntax*)&par->branches[n/2].first : (parse::syntax*)&par->branches[n/2].second);
-						update = true;
-					}
-					else
-						error("", "invalid option", __FILE__, __LINE__);
-				}
-				else if (stack.back()->is_a<parse_hse::loop>())
-				{
-					parse_hse::loop *par = (parse_hse::loop*)stack.back();
-					if (n < par->branches.size()/2)
-					{
-						stack.push_back(n%2 == 0 ? (parse::syntax*)&par->branches[n/2].first : (parse::syntax*)&par->branches[n/2].second);
-						update = true;
-					}
-					else
-						error("", "invalid option", __FILE__, __LINE__);
-				}
-				else if (stack.back()->is_a<parse_hse::sequence>())
-				{
-					parse_hse::sequence *par = (parse_hse::sequence*)stack.back();
-					if (n < par->actions.size())
-					{
-						stack.push_back(par->actions[n]);
 						update = true;
 					}
 					else
@@ -410,15 +277,13 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, boo
 	return result;
 }
 
-void real_time(hse::graph &g, boolean::variable_set &v, string filename)
+void real_time(hse::graph &g, ucs::variable_set &v, string filename)
 {
 	hse::encoder enc;
 	enc.base = &g;
 
 	tokenizer assignment_parser(false);
-	parse_boolean::assignment::register_syntax(assignment_parser);
-
-	g.reachability();
+	parse_expression::composition::register_syntax(assignment_parser);
 
 	char command[256];
 	bool done = false;
@@ -481,7 +346,7 @@ void real_time(hse::graph &g, boolean::variable_set &v, string filename)
 			else
 			{
 				assignment_parser.insert("", string(command).substr(6));
-				parse_boolean::assignment expr(assignment_parser);
+				parse_expression::composition expr(assignment_parser);
 				boolean::cover action = import_cover(expr, v, 0, &assignment_parser, true);
 				if (assignment_parser.is_clean())
 				{
@@ -502,7 +367,7 @@ int main(int argc, char **argv)
 	config.set_working_directory(argv[0]);
 	tokenizer hse_tokens;
 	tokenizer dot_tokens;
-	parse_hse::parallel::register_syntax(hse_tokens);
+	parse_chp::composition::register_syntax(hse_tokens);
 	parse_dot::graph::register_syntax(dot_tokens);
 	hse_tokens.register_comment<parse::block_comment>();
 	hse_tokens.register_comment<parse::line_comment>();
@@ -557,18 +422,18 @@ int main(int argc, char **argv)
 	if (is_clean() && hse_tokens.segments.size() > 0)
 	{
 		hse::graph g;
-		boolean::variable_set v;
+		ucs::variable_set v;
 
 		bool first = true;
 		hse_tokens.increment(false);
-		hse_tokens.expect<parse_hse::parallel>();
+		hse_tokens.expect<parse_chp::composition>();
 		while (hse_tokens.decrement(__FILE__, __LINE__))
 		{
-			parse_hse::parallel syntax(hse_tokens);
+			parse_chp::composition syntax(hse_tokens);
 			g.merge(hse::parallel, import_graph(syntax, v, 0, &hse_tokens, true), !first);
 
 			hse_tokens.increment(false);
-			hse_tokens.expect<parse_hse::parallel>();
+			hse_tokens.expect<parse_chp::composition>();
 			first = false;
 		}
 
