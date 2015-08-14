@@ -13,6 +13,7 @@
 #include <hse/graph.h>
 #include <hse/simulator.h>
 #include <hse/encoder.h>
+#include <hse/elaborator.h>
 #include <interpret_hse/import.h>
 #include <interpret_hse/export.h>
 #include <interpret_boolean/export.h>
@@ -308,7 +309,7 @@ void real_time(hse::graph &g, ucs::variable_set &v, string filename)
 		else if ((strncmp(command, "quit", 4) == 0 && length == 4) || (strncmp(command, "q", 1) == 0 && length == 1))
 			done = true;
 		else if ((strncmp(command, "elaborate", 9) == 0 && length == 9) || (strncmp(command, "e", 1) == 0 && length == 1))
-			g.elaborate(v, true);
+			elaborate(g, v, true);
 		else if ((strncmp(command, "conflicts", 9) == 0 && length == 9) || (strncmp(command, "c", 1) == 0 && length == 1))
 		{
 			enc.check(true);
@@ -424,17 +425,15 @@ int main(int argc, char **argv)
 		hse::graph g;
 		ucs::variable_set v;
 
-		bool first = true;
 		hse_tokens.increment(false);
 		hse_tokens.expect<parse_chp::composition>();
 		while (hse_tokens.decrement(__FILE__, __LINE__))
 		{
 			parse_chp::composition syntax(hse_tokens);
-			g.merge(hse::parallel, import_graph(syntax, v, 0, &hse_tokens, true), !first);
+			g.merge(hse::parallel, import_graph(syntax, v, 0, &hse_tokens, true));
 
 			hse_tokens.increment(false);
 			hse_tokens.expect<parse_chp::composition>();
-			first = false;
 		}
 
 		dot_tokens.increment(false);
@@ -442,16 +441,15 @@ int main(int argc, char **argv)
 		while (dot_tokens.decrement(__FILE__, __LINE__))
 		{
 			parse_dot::graph syntax(dot_tokens);
-			g.merge(hse::parallel, import_graph(syntax, v, &dot_tokens, true), !first);
+			g.merge(hse::parallel, import_graph(syntax, v, &dot_tokens, true));
 
 			dot_tokens.increment(false);
 			dot_tokens.expect<parse_dot::graph>();
-			first = false;
 		}
 		g.post_process(v, true);
 		g.check_variables(v);
 
-		g.elaborate(v, false);
+		elaborate(g, v, false);
 
 		hse::encoder enc;
 		enc.base = &g;
