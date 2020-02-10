@@ -1,7 +1,8 @@
 # hseenc
 
-**Usage**: `hseenc [options] file...`
 A state encoder and conflict solver for HSE
+
+**Usage**: `hseenc [options] file...`
 
 **General Options**:
  - `-h`,`--help`      Display this information
