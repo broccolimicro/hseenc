@@ -1,4 +1,4 @@
-# HSEenc
+# hseenc
 
 **Usage**: `hseenc [options] file...`
 A state encoder and conflict solver for HSE
@@ -23,8 +23,8 @@ A state encoder and conflict solver for HSE
 `(arg=value)` specifies an optional argument with a default value
 
 **General**:
- - `help</code>, `h`                       print this message
- - `quit</code>, `q`                       exit the interactive simulation environment
+ - `help`, `h`                       print this message
+ - `quit`, `q`                       exit the interactive simulation environment
  - `load (filename)`               load an hse, default is to reload current file
  - `save (filename)`               save an hse, default is to overwrite current file
 
