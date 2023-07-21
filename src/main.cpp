@@ -309,7 +309,7 @@ void real_time(hse::graph &g, ucs::variable_set &v, string filename)
 		else if ((strncmp(command, "quit", 4) == 0 && length == 4) || (strncmp(command, "q", 1) == 0 && length == 1))
 			done = true;
 		else if ((strncmp(command, "elaborate", 9) == 0 && length == 9) || (strncmp(command, "e", 1) == 0 && length == 1))
-			elaborate(g, v, true);
+			elaborate(g, v, true, true);
 		else if ((strncmp(command, "conflicts", 9) == 0 && length == 9) || (strncmp(command, "c", 1) == 0 && length == 1))
 		{
 			enc.check(true, true);
@@ -454,7 +454,7 @@ int main(int argc, char **argv)
 
 		if (c || s)
 		{
-			elaborate(g, v, true);
+			elaborate(g, v, true, true);
 			enc.check(true, true);
 			if (c)
 				print_conflicts(enc, g, v, -1);
@@ -465,7 +465,7 @@ int main(int argc, char **argv)
 
 		if (cu || cd || su || sd)
 		{
-			elaborate(g, v, true);
+			elaborate(g, v, true, true);
 			enc.check(false, true);
 
 			if (cu)
