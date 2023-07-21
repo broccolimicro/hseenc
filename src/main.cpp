@@ -312,32 +312,32 @@ void real_time(hse::graph &g, ucs::variable_set &v, string filename)
 			elaborate(g, v, true);
 		else if ((strncmp(command, "conflicts", 9) == 0 && length == 9) || (strncmp(command, "c", 1) == 0 && length == 1))
 		{
-			enc.check(true);
+			enc.check(true, true);
 			print_conflicts(enc, g, v, -1);
 		}
 		else if ((strncmp(command, "conflicts up", 12) == 0 && length == 12) || (strncmp(command, "cu", 2) == 0 && length == 2))
 		{
-			enc.check(false);
+			enc.check(false, true);
 			print_conflicts(enc, g, v, 0);
 		}
 		else if ((strncmp(command, "conflicts down", 14) == 0 && length == 14) || (strncmp(command, "cd", 2) == 0 && length == 2))
 		{
-			enc.check(false);
+			enc.check(false, true);
 			print_conflicts(enc, g, v, 1);
 		}
 		else if ((strncmp(command, "suspects", 8) == 0 && length == 8) || (strncmp(command, "s", 1) == 0 && length == 1))
 		{
-			enc.check(true);
+			enc.check(true, true);
 			print_suspects(enc, g, v, -1);
 		}
 		else if ((strncmp(command, "suspects up", 11) == 0 && length == 11) || (strncmp(command, "su", 2) == 0 && length == 2))
 		{
-			enc.check(false);
+			enc.check(false, true);
 			print_suspects(enc, g, v, 0);
 		}
 		else if ((strncmp(command, "suspects down", 13) == 0 && length == 13) || (strncmp(command, "sd", 2) == 0 && length == 2))
 		{
-			enc.check(false);
+			enc.check(false, true);
 			print_suspects(enc, g, v, 1);
 		}
 		else if (strncmp(command, "insert", 6) == 0)
@@ -449,14 +449,13 @@ int main(int argc, char **argv)
 		g.post_process(v, true);
 		g.check_variables(v);
 
-		elaborate(g, v, false);
-
 		hse::encoder enc;
 		enc.base = &g;
 
 		if (c || s)
 		{
-			enc.check(true);
+			elaborate(g, v, true);
+			enc.check(true, true);
 			if (c)
 				print_conflicts(enc, g, v, -1);
 
@@ -466,7 +465,8 @@ int main(int argc, char **argv)
 
 		if (cu || cd || su || sd)
 		{
-			enc.check(false);
+			elaborate(g, v, true);
+			enc.check(false, true);
 
 			if (cu)
 				print_conflicts(enc, g, v, 0);
