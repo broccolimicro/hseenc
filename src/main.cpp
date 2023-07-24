@@ -455,7 +455,7 @@ int main(int argc, char **argv)
 		if (c || s)
 		{
 			elaborate(g, v, true, false);
-			enc.check(true, true);
+			enc.check(true, false);
 			if (c)
 				print_conflicts(enc, g, v, -1);
 
@@ -466,7 +466,7 @@ int main(int argc, char **argv)
 		if (cu || cd || su || sd)
 		{
 			elaborate(g, v, true, false);
-			enc.check(false, true);
+			enc.check(false, false);
 
 			if (cu)
 				print_conflicts(enc, g, v, 0);
