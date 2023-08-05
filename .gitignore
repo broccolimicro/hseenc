@@ -1,0 +1,7 @@
+*.astg
+*.png
+*.svg
+*.hse
+*.o
+hseenc
+build
