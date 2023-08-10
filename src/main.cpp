@@ -14,11 +14,14 @@
 #include <hse/simulator.h>
 #include <hse/encoder.h>
 #include <hse/elaborator.h>
+#include <hse/synthesize.h>
+#include <prs/production_rule.h>
 #include <interpret_hse/import.h>
 #include <interpret_hse/export.h>
 #include <interpret_boolean/export.h>
 #include <interpret_boolean/import.h>
 #include <ucs/variable.h>
+#include <interpret_prs/export.h>
 
 void print_help()
 {
@@ -87,13 +90,11 @@ void print_conflicts(hse::encoder &enc, hse::graph &g, ucs::variable_set &v, int
 		{
 			vector<hse::iterator> imp;
 			for (int j = 0; j < (int)enc.conflicts[i].implicant.size(); j++)
-				imp.push_back(hse::iterator(hse::place::type, enc.conflicts[i].implicant[j]));
+				imp.push_back(enc.conflicts[i].implicant[j]);
 			printf("T%d.%d\t%s\n{\n", enc.conflicts[i].index.index, enc.conflicts[i].index.term, export_node(hse::iterator(hse::transition::type, enc.conflicts[i].index.index), g, v).c_str());
 
-			for (int j = 0; j < (int)enc.conflicts[i].region.size(); j++)
-			{
-				hse::iterator k(hse::place::type, enc.conflicts[i].region[j]);
-				printf("\tP%d\t%s\n", enc.conflicts[i].region[j], export_node(k, g, v).c_str());
+			for (int j = 0; j < (int)enc.conflicts[i].region.size(); j++) {
+				printf("\t%s\t%s\n", enc.conflicts[i].region[j].to_string().c_str(), export_node(enc.conflicts[i].region[j], g, v).c_str());
 			}
 			printf("}\n");
 		}
@@ -108,17 +109,13 @@ void print_suspects(hse::encoder &enc, hse::graph &g, ucs::variable_set &v, int 
 		if (enc.suspects[i].sense == sense)
 		{
 			printf("{\n");
-			for (int j = 0; j < (int)enc.suspects[i].first.size(); j++)
-			{
-				hse::iterator k(hse::place::type, enc.suspects[i].first[j]);
-				printf("\tP%d\t%s\n", enc.suspects[i].first[j], export_node(k, g, v).c_str());
+			for (int j = 0; j < (int)enc.suspects[i].first.size(); j++) {
+				printf("\t%s\t%s\n", enc.suspects[i].first[j].to_string().c_str(), export_node(enc.suspects[i].first[j], g, v).c_str());
 			}
 			printf("=============================================\n");
 
-			for (int j = 0; j < (int)enc.suspects[i].second.size(); j++)
-			{
-				hse::iterator k(hse::place::type, enc.suspects[i].second[j]);
-				printf("\tP%d\t%s\n", enc.suspects[i].second[j], export_node(k, g, v).c_str());
+			for (int j = 0; j < (int)enc.suspects[i].second.size(); j++) {
+				printf("\t%s\t%s\n", enc.suspects[i].second[j].to_string().c_str(), export_node(enc.suspects[i].second[j], g, v).c_str());
 			}
 			printf("}\n");
 		}
@@ -373,7 +370,11 @@ int main(int argc, char **argv)
 	hse_tokens.register_token<parse::block_comment>(false);
 	hse_tokens.register_token<parse::line_comment>(false);
 
-	bool c = false, cu = false, cd = false, s = false, su = false, sd = false;
+	string ofilename;
+	bool cmos = true;
+	bool force = false;
+	bool progress = false;
+	bool c = false, s = false;
 
 	for (int i = 1; i < argc; i++)
 	{
@@ -392,20 +393,25 @@ int main(int argc, char **argv)
 			set_verbose(true);
 		else if (arg == "--debug" || arg == "-d")
 			set_debug(true);
+		else if (arg == "--no-cmos" || arg == "-n")
+			cmos = false;
+		else if (arg == "--force" || arg == "-f")
+			force = true;
+		else if (arg == "--progress" || arg == "-p")
+			progress = true;
 		else if (arg == "-c")
 			c = true;
-		else if (arg == "-cu")
-			cu = true;
-		else if (arg == "-cd")
-			cd = true;
 		else if (arg == "-s")
 			s = true;
-		else if (arg == "-su")
-			su = true;
-		else if (arg == "-sd")
-			sd = true;
-		else
-		{
+		else if (arg == "-o") {
+			i++;
+			if (i < argc)
+				ofilename = argv[i];
+			else {
+				error("", "expected output filename", __FILE__, __LINE__);
+				return 1;
+			}
+		} else {
 			string filename = argv[i];
 			int dot = filename.find_last_of(".");
 			string format = "";
@@ -448,41 +454,60 @@ int main(int argc, char **argv)
 		}
 		g.post_process(v, true);
 		g.check_variables(v);
+		
+		elaborate(g, v, progress);
 
 		hse::encoder enc;
 		enc.base = &g;
 
-		if (c || s)
-		{
-			elaborate(g, v, false);
-			enc.check(true, false);
-			if (c)
+		enc.check(!cmos, progress);
+
+		if (!cmos) {
+			if (c) {
 				print_conflicts(enc, g, v, -1);
-
-			if (s)
+			}
+			if (s) {
 				print_suspects(enc, g, v, -1);
-		}
-
-		if (cu || cd || su || sd)
-		{
-			elaborate(g, v, false);
-			enc.check(false, false);
-
-			if (cu)
+			}
+		} else {
+			if (c) {
 				print_conflicts(enc, g, v, 0);
-
-			if (cd)
 				print_conflicts(enc, g, v, 1);
+			}
 
-			if (su)
+			if (s) {
 				print_suspects(enc, g, v, 0);
-
-			if (sd)
 				print_suspects(enc, g, v, 1);
+			}
 		}
 
-		if (!c && !cu && !cd && !s && !su && !sd)
-			real_time(g, v, "");
+		if (c || s) {
+			complete();
+			return is_clean();
+		}
+
+		if (enc.conflicts.size() > 0) {
+			if (!cmos) {
+				print_conflicts(enc, g, v, -1);
+			} else {
+				print_conflicts(enc, g, v, 0);
+				print_conflicts(enc, g, v, 1);
+			}
+			if (!force) {
+				complete();
+				return is_clean();
+			}
+		}
+
+		prs::production_rule_set pr;
+		hse::guard_weakening(g, &pr, v, !cmos, progress);
+	
+		FILE *fout = stdout;
+	 	if (ofilename != "") {
+			fout = fopen(ofilename.c_str(), "w");
+		}
+		fprintf(fout, "%s", export_production_rule_set(pr, v).to_string().c_str());
+		fclose(fout);
 	}
 
 	complete();
