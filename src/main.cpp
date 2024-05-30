@@ -88,9 +88,6 @@ void print_conflicts(hse::encoder &enc, hse::graph &g, ucs::variable_set &v, int
 	{
 		if (enc.conflicts[i].sense == sense)
 		{
-			vector<hse::iterator> imp;
-			for (int j = 0; j < (int)enc.conflicts[i].implicant.size(); j++)
-				imp.push_back(enc.conflicts[i].implicant[j]);
 			printf("T%d.%d\t%s\n{\n", enc.conflicts[i].index.index, enc.conflicts[i].index.term, export_node(hse::iterator(hse::transition::type, enc.conflicts[i].index.index), g, v).c_str());
 
 			for (int j = 0; j < (int)enc.conflicts[i].region.size(); j++) {
