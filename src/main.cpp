@@ -497,7 +497,11 @@ int main(int argc, char **argv)
 		}
 
 		prs::production_rule_set pr;
-		hse::guard_weakening(g, &pr, v, !cmos, progress);
+		hse::gate_set gates(&g, &v);
+		gates.load(!cmos);
+		gates.weaken();
+		gates.build_reset();
+		gates.save(&pr);
 	
 		FILE *fout = stdout;
 	 	if (ofilename != "") {
