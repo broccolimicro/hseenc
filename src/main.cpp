@@ -456,6 +456,7 @@ int main(int argc, char **argv)
 
 		hse::encoder enc;
 		enc.base = &g;
+		enc.v_set = &v;
 
 		enc.check(!cmos, progress);
 
