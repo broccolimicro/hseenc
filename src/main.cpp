@@ -126,7 +126,7 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, ucs
 
 	vector<hse::iterator> source;
 	if (g.source.size() > 0)
-		for (int i = 0; i < g.source[0].tokens.size(); i++)
+		for (int i = 0; i < (int)g.source[0].tokens.size(); i++)
 			source.push_back(hse::iterator(hse::place::type, g.source[0].tokens[i].index));
 	parse_chp::composition p = export_sequence(source, g, v);
 
@@ -153,7 +153,7 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, ucs
 					stack.back() = &par->branches[0].assign;
 				else
 				{
-					for (int i = 0; i < par->branches.size(); i++)
+					for (int i = 0; i < (int)par->branches.size(); i++)
 						printf("(%d) %s\n", i, par->branches[i].to_string(-1, "").c_str());
 					update = false;
 				}
@@ -165,7 +165,7 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, ucs
 					stack.back() = &par->branches[0].first;
 				else
 				{
-					for (int i = 0; i < par->branches.size(); i++)
+					for (int i = 0; i < (int)par->branches.size(); i++)
 						printf("(%d) %s -> (%d) %s\n", i*2, par->branches[i].first.to_string().c_str(), i*2+1, par->branches[i].second.to_string().c_str());
 					update = false;
 				}
@@ -240,7 +240,7 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, ucs
 				if (stack.back()->is_a<parse_chp::composition>())
 				{
 					parse_chp::composition *par = (parse_chp::composition*)stack.back();
-					if (n < par->branches.size())
+					if (n < (int)par->branches.size())
 					{
 						if (par->branches[n].sub.valid)
 							stack.push_back(&par->branches[n].sub);
@@ -256,7 +256,7 @@ vector<pair<hse::iterator, int> > get_locations(FILE *script, hse::graph &g, ucs
 				else if (stack.back()->is_a<parse_chp::control>())
 				{
 					parse_chp::control *par = (parse_chp::control*)stack.back();
-					if (n < par->branches.size()/2)
+					if (n < (int)par->branches.size()/2)
 					{
 						stack.push_back(n%2 == 0 ? (parse::syntax*)&par->branches[n/2].first : (parse::syntax*)&par->branches[n/2].second);
 						update = true;
@@ -410,7 +410,7 @@ int main(int argc, char **argv)
 			}
 		} else {
 			string filename = argv[i];
-			int dot = filename.find_last_of(".");
+			size_t dot = filename.find_last_of(".");
 			string format = "";
 			if (dot != string::npos)
 				format = filename.substr(dot+1);
@@ -484,6 +484,7 @@ int main(int argc, char **argv)
 		}
 
 		if (enc.conflicts.size() > 0) {
+			enc.insert_state_variables();
 			if (!cmos) {
 				print_conflicts(enc, g, v, -1);
 			} else {
