@@ -88,12 +88,12 @@ void print_conflicts(hse::encoder &enc, hse::graph &g, ucs::variable_set &v, int
 	{
 		if (enc.conflicts[i].sense == sense)
 		{
-			printf("T%d.%d\t%s\n{\n", enc.conflicts[i].index.index, enc.conflicts[i].index.term, export_node(hse::iterator(hse::transition::type, enc.conflicts[i].index.index), g, v).c_str());
+			printf("T%d.%d\t...%s...   conflicts with:\n", enc.conflicts[i].index.index, enc.conflicts[i].index.term, export_node(hse::iterator(hse::transition::type, enc.conflicts[i].index.index), g, v).c_str());
 
 			for (int j = 0; j < (int)enc.conflicts[i].region.size(); j++) {
-				printf("\t%s\t%s\n", enc.conflicts[i].region[j].to_string().c_str(), export_node(enc.conflicts[i].region[j], g, v).c_str());
+				printf("\t%s\t...%s...\n", enc.conflicts[i].region[j].to_string().c_str(), export_node(enc.conflicts[i].region[j], g, v).c_str());
 			}
-			printf("}\n");
+			printf("\n");
 		}
 	}
 	printf("\n");
@@ -105,16 +105,16 @@ void print_suspects(hse::encoder &enc, hse::graph &g, ucs::variable_set &v, int 
 	{
 		if (enc.suspects[i].sense == sense)
 		{
-			printf("{\n");
+			printf("Transitions here:\n");
 			for (int j = 0; j < (int)enc.suspects[i].first.size(); j++) {
-				printf("\t%s\t%s\n", enc.suspects[i].first[j].to_string().c_str(), export_node(enc.suspects[i].first[j], g, v).c_str());
+				printf("\t%s\t...%s...\n", enc.suspects[i].first[j].to_string().c_str(), export_node(enc.suspects[i].first[j], g, v).c_str());
 			}
-			printf("=============================================\n");
+			printf("Will also fire here:\n");
 
 			for (int j = 0; j < (int)enc.suspects[i].second.size(); j++) {
-				printf("\t%s\t%s\n", enc.suspects[i].second[j].to_string().c_str(), export_node(enc.suspects[i].second[j], g, v).c_str());
+				printf("\t%s\t...%s...\n", enc.suspects[i].second[j].to_string().c_str(), export_node(enc.suspects[i].second[j], g, v).c_str());
 			}
-			printf("}\n");
+			printf("\n");
 		}
 	}
 	printf("\n");
@@ -306,32 +306,32 @@ void real_time(hse::graph &g, ucs::variable_set &v, string filename)
 			elaborate(g, v, true);
 		else if ((strncmp(command, "conflicts", 9) == 0 && length == 9) || (strncmp(command, "c", 1) == 0 && length == 1))
 		{
-			enc.check(true, true);
+			enc.check(v, true, true);
 			print_conflicts(enc, g, v, -1);
 		}
 		else if ((strncmp(command, "conflicts up", 12) == 0 && length == 12) || (strncmp(command, "cu", 2) == 0 && length == 2))
 		{
-			enc.check(false, true);
+			enc.check(v, false, true);
 			print_conflicts(enc, g, v, 0);
 		}
 		else if ((strncmp(command, "conflicts down", 14) == 0 && length == 14) || (strncmp(command, "cd", 2) == 0 && length == 2))
 		{
-			enc.check(false, true);
+			enc.check(v, false, true);
 			print_conflicts(enc, g, v, 1);
 		}
 		else if ((strncmp(command, "suspects", 8) == 0 && length == 8) || (strncmp(command, "s", 1) == 0 && length == 1))
 		{
-			enc.check(true, true);
+			enc.check(v, true, true);
 			print_suspects(enc, g, v, -1);
 		}
 		else if ((strncmp(command, "suspects up", 11) == 0 && length == 11) || (strncmp(command, "su", 2) == 0 && length == 2))
 		{
-			enc.check(false, true);
+			enc.check(v, false, true);
 			print_suspects(enc, g, v, 0);
 		}
 		else if ((strncmp(command, "suspects down", 13) == 0 && length == 13) || (strncmp(command, "sd", 2) == 0 && length == 2))
 		{
-			enc.check(false, true);
+			enc.check(v, false, true);
 			print_suspects(enc, g, v, 1);
 		}
 		else if (strncmp(command, "insert", 6) == 0)
@@ -368,6 +368,7 @@ int main(int argc, char **argv)
 	hse_tokens.register_token<parse::line_comment>(false);
 
 	string ofilename;
+	string gfilename;
 	bool cmos = true;
 	bool force = false;
 	bool progress = false;
@@ -400,7 +401,15 @@ int main(int argc, char **argv)
 			c = true;
 		else if (arg == "-s")
 			s = true;
-		else if (arg == "-o") {
+		else if (arg == "-g") {
+			i++;
+			if (i < argc)
+				gfilename = argv[i];
+			else {
+				error("", "expected graph filename", __FILE__, __LINE__);
+				return 1;
+			}
+		} else if (arg == "-o") {
 			i++;
 			if (i < argc)
 				ofilename = argv[i];
@@ -453,26 +462,29 @@ int main(int argc, char **argv)
 		g.check_variables(v);
 		
 		elaborate(g, v, progress);
+		if (not is_clean()) {
+			complete();
+			return false;
+		}
 
 		hse::encoder enc;
 		enc.base = &g;
 
-		enc.check(!cmos, progress);
+		enc.check(v, !cmos, progress);
 
-		if (!cmos) {
-			if (c) {
+		if (c) {
+			if (!cmos) {
 				print_conflicts(enc, g, v, -1);
-			}
-			if (s) {
-				print_suspects(enc, g, v, -1);
-			}
-		} else {
-			if (c) {
+			} else {
 				print_conflicts(enc, g, v, 0);
 				print_conflicts(enc, g, v, 1);
 			}
+		}
 
-			if (s) {
+		if (s) {
+			if (!cmos) {
+				print_suspects(enc, g, v, -1);
+			} else {
 				print_suspects(enc, g, v, 0);
 				print_suspects(enc, g, v, 1);
 			}
@@ -483,8 +495,37 @@ int main(int argc, char **argv)
 			return is_clean();
 		}
 
+		bool resimulate = false;
 		if (enc.conflicts.size() > 0) {
-			enc.insert_state_variables();
+			/*if (!cmos) {
+				print_conflicts(enc, g, v, -1);
+			} else {
+				print_conflicts(enc, g, v, 0);
+				print_conflicts(enc, g, v, 1);
+			}*/
+
+			enc.insert_state_variables(v);
+			resimulate = true;
+		}
+
+		if (gfilename != "") {
+			FILE *fg = fopen(gfilename.c_str(), "w");
+			fprintf(fg, "%s", export_astg(g, v).to_string().c_str());
+			fclose(fg);
+		}
+
+		if (resimulate) {
+			elaborate(g, v, progress);
+			if (not is_clean()) {
+				complete();
+				return false;
+			}
+
+			enc.check(v, !cmos, progress);
+		}
+
+		if (enc.conflicts.size() > 0) {
+			// state variable insertion failed
 			if (!cmos) {
 				print_conflicts(enc, g, v, -1);
 			} else {
