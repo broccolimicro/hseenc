@@ -36,9 +36,6 @@ void print_help()
 	printf(" -c             check for state conflicts that occur regardless of sense\n");
 	printf(" -cu            check for state conflicts that occur due to up-going transitions\n");
 	printf(" -cd            check for state conflicts that occur due to down-going transitions\n");
-	printf(" -s             check for potential state conflicts that occur regardless of sense\n");
-	printf(" -su            check for potential state conflicts that occur due to up-going transitions\n");
-	printf(" -sd            check for potential state conflicts that occur due to down-going transitions\n");
 }
 
 void print_version()
@@ -62,9 +59,6 @@ void print_command_help()
 	printf(" conflicts, c                  check for state conflicts that occur regardless of sense\n");
 	printf(" conflicts up, cu              check for state conflicts that occur due to up-going transitions\n");
 	printf(" conflicts down, cd            check for state conflicts that occur due to down-going transitions\n");
-	printf(" suspects, s                   check for potential state conflicts that occur regardless of sense\n");
-	printf(" suspects up, su               check for potential state conflicts that occur due to up-going transitions\n");
-	printf(" suspects down, sd             check for potential state conflicts that occur due to down-going transitions\n");
 	printf("\nViewing and Manipulating Structure:\n");
 	printf(" print, p                      print the current hse\n");
 	printf(" insert <expr>                 insert the transition <expr> into the hse\n");
@@ -92,27 +86,6 @@ void print_conflicts(hse::encoder &enc, hse::graph &g, ucs::variable_set &v, int
 
 			for (int j = 0; j < (int)enc.conflicts[i].region.size(); j++) {
 				printf("\t%s\t...%s...\n", enc.conflicts[i].region[j].to_string().c_str(), export_node(enc.conflicts[i].region[j], g, v).c_str());
-			}
-			printf("\n");
-		}
-	}
-	printf("\n");
-}
-
-void print_suspects(hse::encoder &enc, hse::graph &g, ucs::variable_set &v, int sense)
-{
-	for (int i = 0; i < (int)enc.suspects.size(); i++)
-	{
-		if (enc.suspects[i].sense == sense)
-		{
-			printf("Transitions here:\n");
-			for (int j = 0; j < (int)enc.suspects[i].first.size(); j++) {
-				printf("\t%s\t...%s...\n", enc.suspects[i].first[j].to_string().c_str(), export_node(enc.suspects[i].first[j], g, v).c_str());
-			}
-			printf("Will also fire here:\n");
-
-			for (int j = 0; j < (int)enc.suspects[i].second.size(); j++) {
-				printf("\t%s\t...%s...\n", enc.suspects[i].second[j].to_string().c_str(), export_node(enc.suspects[i].second[j], g, v).c_str());
 			}
 			printf("\n");
 		}
@@ -276,6 +249,7 @@ void real_time(hse::graph &g, ucs::variable_set &v, string filename)
 {
 	hse::encoder enc;
 	enc.base = &g;
+	enc.variables = &v;
 
 	tokenizer assignment_parser(false);
 	parse_expression::composition::register_syntax(assignment_parser);
@@ -306,33 +280,18 @@ void real_time(hse::graph &g, ucs::variable_set &v, string filename)
 			elaborate(g, v, true);
 		else if ((strncmp(command, "conflicts", 9) == 0 && length == 9) || (strncmp(command, "c", 1) == 0 && length == 1))
 		{
-			enc.check(v, true, true);
+			enc.check(true, true);
 			print_conflicts(enc, g, v, -1);
 		}
 		else if ((strncmp(command, "conflicts up", 12) == 0 && length == 12) || (strncmp(command, "cu", 2) == 0 && length == 2))
 		{
-			enc.check(v, false, true);
+			enc.check(false, true);
 			print_conflicts(enc, g, v, 0);
 		}
 		else if ((strncmp(command, "conflicts down", 14) == 0 && length == 14) || (strncmp(command, "cd", 2) == 0 && length == 2))
 		{
-			enc.check(v, false, true);
+			enc.check(false, true);
 			print_conflicts(enc, g, v, 1);
-		}
-		else if ((strncmp(command, "suspects", 8) == 0 && length == 8) || (strncmp(command, "s", 1) == 0 && length == 1))
-		{
-			enc.check(v, true, true);
-			print_suspects(enc, g, v, -1);
-		}
-		else if ((strncmp(command, "suspects up", 11) == 0 && length == 11) || (strncmp(command, "su", 2) == 0 && length == 2))
-		{
-			enc.check(v, false, true);
-			print_suspects(enc, g, v, 0);
-		}
-		else if ((strncmp(command, "suspects down", 13) == 0 && length == 13) || (strncmp(command, "sd", 2) == 0 && length == 2))
-		{
-			enc.check(v, false, true);
-			print_suspects(enc, g, v, 1);
 		}
 		else if (strncmp(command, "insert", 6) == 0)
 		{
@@ -372,7 +331,7 @@ int main(int argc, char **argv)
 	bool cmos = true;
 	bool force = false;
 	bool progress = false;
-	bool c = false, s = false;
+	bool c = false;
 
 	for (int i = 1; i < argc; i++)
 	{
@@ -399,8 +358,6 @@ int main(int argc, char **argv)
 			progress = true;
 		else if (arg == "-c")
 			c = true;
-		else if (arg == "-s")
-			s = true;
 		else if (arg == "-g") {
 			i++;
 			if (i < argc)
@@ -469,8 +426,9 @@ int main(int argc, char **argv)
 
 		hse::encoder enc;
 		enc.base = &g;
+		enc.variables = &v;
 
-		enc.check(v, !cmos, progress);
+		enc.check(!cmos, progress);
 
 		if (c) {
 			if (!cmos) {
@@ -481,47 +439,42 @@ int main(int argc, char **argv)
 			}
 		}
 
-		if (s) {
-			if (!cmos) {
-				print_suspects(enc, g, v, -1);
-			} else {
-				print_suspects(enc, g, v, 0);
-				print_suspects(enc, g, v, 1);
-			}
-		}
-
-		if (c || s) {
+		if (c) {
 			complete();
 			return is_clean();
 		}
 
-		bool resimulate = false;
-		if (enc.conflicts.size() > 0) {
-			/*if (!cmos) {
-				print_conflicts(enc, g, v, -1);
-			} else {
-				print_conflicts(enc, g, v, 0);
-				print_conflicts(enc, g, v, 1);
-			}*/
+		char thing[32];
+		for (int i = 0; i < 2 and enc.conflicts.size() > 0; i++) {
+			bool resimulate = false;
+			if (enc.conflicts.size() > 0) {
+				if (!cmos) {
+					print_conflicts(enc, g, v, -1);
+				} else {
+					print_conflicts(enc, g, v, 0);
+					print_conflicts(enc, g, v, 1);
+				}
 
-			enc.insert_state_variables(v);
-			resimulate = true;
-		}
-
-		if (gfilename != "") {
-			FILE *fg = fopen(gfilename.c_str(), "w");
-			fprintf(fg, "%s", export_astg(g, v).to_string().c_str());
-			fclose(fg);
-		}
-
-		if (resimulate) {
-			elaborate(g, v, progress);
-			if (not is_clean()) {
-				complete();
-				return false;
+				enc.insert_state_variables();
+				resimulate = true;
 			}
 
-			enc.check(v, !cmos, progress);
+			if (gfilename != "") {
+				sprintf(thing, "g%d.astg", i);
+				FILE *fg = fopen(thing, "w");
+				fprintf(fg, "%s", export_astg(g, v).to_string().c_str());
+				fclose(fg);
+			}
+
+			if (resimulate) {
+				elaborate(g, v, progress);
+				if (not is_clean()) {
+					complete();
+					return false;
+				}
+
+				enc.check(!cmos, progress);
+			}
 		}
 
 		if (enc.conflicts.size() > 0) {
