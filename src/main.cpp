@@ -445,7 +445,7 @@ int main(int argc, char **argv)
 		}
 
 		char thing[32];
-		for (int i = 0; i < 2 and enc.conflicts.size() > 0; i++) {
+		for (int i = 0; i < 10 and enc.conflicts.size() > 0; i++) {
 			bool resimulate = false;
 			if (enc.conflicts.size() > 0) {
 				if (!cmos) {

@@ -1,9 +1,0 @@
-(_Lf+,L.f-,_Lt+,L.t-; [L.e];
-*[[1->_Lf-; L.f+ : 1->_Lt-; L.t+]; [~L.e]; (_Lf+; L.f- || _Lt+; L.t-); [L.e]])'1 ||
-
-L.e+,_Rf+,R.f-,_Rt+,R.t-; [R.e & ~L.f & ~L.t];
-*[[R.e & L.f -> _Rf-; R.f+ [] R.e & L.t -> _Rt-; R.t+]; L.e-; [~R.e & ~L.f & ~L.t]; (_Rf+; R.f-||_Rt+; R.t-); L.e+] ||
-
-(R.e+; [~R.f & ~R.t];
-*[[R.f | R.t]; R.e-; [~R.f & ~R.t]; R.e+])'1
-
