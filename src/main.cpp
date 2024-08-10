@@ -444,37 +444,29 @@ int main(int argc, char **argv)
 			return is_clean();
 		}
 
-		char thing[32];
 		for (int i = 0; i < 10 and enc.conflicts.size() > 0; i++) {
-			bool resimulate = false;
-			if (enc.conflicts.size() > 0) {
-				if (!cmos) {
-					print_conflicts(enc, g, v, -1);
-				} else {
-					print_conflicts(enc, g, v, 0);
-					print_conflicts(enc, g, v, 1);
-				}
+			/*if (!cmos) {
+				print_conflicts(enc, g, v, -1);
+			} else {
+				print_conflicts(enc, g, v, 0);
+				print_conflicts(enc, g, v, 1);
+			}*/
 
-				enc.insert_state_variables();
-				resimulate = true;
+			enc.insert_state_variables();
+
+			elaborate(g, v, progress);
+			if (not is_clean()) {
+				complete();
+				return false;
 			}
 
-			if (gfilename != "") {
-				sprintf(thing, "g%d.astg", i);
-				FILE *fg = fopen(thing, "w");
-				fprintf(fg, "%s", export_astg(g, v).to_string().c_str());
-				fclose(fg);
-			}
+			enc.check(!cmos, progress);
+		}
 
-			if (resimulate) {
-				elaborate(g, v, progress);
-				if (not is_clean()) {
-					complete();
-					return false;
-				}
-
-				enc.check(!cmos, progress);
-			}
+		if (gfilename != "") {
+			FILE *fg = fopen(gfilename.c_str(), "w");
+			fprintf(fg, "%s", export_astg(g, v).to_string().c_str());
+			fclose(fg);
 		}
 
 		if (enc.conflicts.size() > 0) {
